@@ -74,9 +74,9 @@ class MyApp(QObject):
 def test_qtass():
     style = qtass.QtAdvancedStylesheet()
     style.set_styles_dir_path("styles")
-    print("Available styles:", style.styles())
+    print("Available styles:", style.styles)
     style.output_dir = "style_output2"
-    style.set_current_style("metro")
+    style.set_current_style("material")
     style.set_default_theme()
     style.update_stylesheet()
 

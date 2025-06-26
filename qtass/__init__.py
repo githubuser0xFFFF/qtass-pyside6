@@ -1,8 +1,7 @@
-from typing import Optional, Set, List, Dict, Any, Tuple, TypeVar
+from typing import Optional, List, Dict, Any, Tuple, TypeVar
 from enum import Enum, auto
 import os
 import json
-import re
 from pathlib import Path
 import weakref
 import jinja2
@@ -312,17 +311,6 @@ class QtAdvancedStylesheet(QObject):
     Encapsulates all information about a single stylesheet-based style.
     """
 
-    class Error(Enum):
-        """
-        Enumeration of possible stylesheet processing errors.
-        """
-        NO_ERROR = 0
-        CSS_TEMPLATE_ERROR = auto()
-        CSS_EXPORT_ERROR = auto()
-        THEME_XML_ERROR = auto()
-        STYLE_JSON_ERROR = auto()
-        RESOURCE_GENERATOR_ERROR = auto()
-
     class Location(Enum):
         """
         An enumeration representing various resource locations within the application.
@@ -347,15 +335,13 @@ class QtAdvancedStylesheet(QObject):
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
-        self.styles_dir: str = ""
+        self.styles_dir: Path = Path()
         self.output_dir: str = ""
         self.style_variables: Dict[str, str] = {}
-        self.theme_colors: Dict[str, str] = {}
-        self.theme_variables: Dict[
-            str, str
-        ] = {}  # theme variables = style_variables + theme_colors
+        self.theme_color_variables: Dict[str, str] = {}
+        self.theme_variables: Dict[str, str] = {}  # theme variables = style_variables + theme_colors
         self.stylesheet: str = ""
-        self._current_style: str = ""
+        self.current_style: str = ""
         self._current_theme: str = ""
         self.default_theme: str = ""
         self.style_name: str = ""
@@ -364,48 +350,63 @@ class QtAdvancedStylesheet(QObject):
         self.palette_colors: List["PaletteColorEntry"] = []
         self.palette_base_color: str = ""
         self.json_style_param: Dict[str, Any] = {}
-        self._error_string: str = ""
-        self._error: "QtAdvancedStylesheet.Error" = QtAdvancedStylesheet.Error.NO_ERROR
         self.icon: QIcon = QIcon()
-        self._styles: list[str] = []
-        self._themes: list[str] = []
+        self.styles: list[str] = []
+        self.themes: list[str] = []
         self.is_dark_theme: bool = False
         self._icon_color_replace_list: "tColorReplaceList" = list()
 
-    def __generate_stylesheet(self) -> bool:
+
+    def __generate_stylesheet(self) -> None:
         """
         Generate the final stylesheet from the stylesheet template file.
         Returns True on success, False otherwise.
         """
         css_template_file_name = self.json_style_param.get("css_template", "")
         if not css_template_file_name:
-            return False
+             raise CssTemplateError('Missing required "css_template" key in the style JSON.')
 
         template_file_path = os.path.join(
             self.current_style_path(), css_template_file_name
         )
         if not os.path.exists(template_file_path):
-            self.__set_error(
-                self.Error.CSS_TEMPLATE_ERROR,
-                f"Stylesheet folder does not contain the CSS template file {css_template_file_name}",
+            raise CssTemplateError(
+                f"Stylesheet folder does not contain the CSS template file {css_template_file_name}"
             )
-            return False
 
         parent, template = os.path.split(template_file_path)
         loader = jinja2.FileSystemLoader(parent)
-        env = jinja2.Environment(autoescape=False, loader=loader)
-        env.filters["opacity"] = jinja2_filter_opacity
-        env.filters["density"] = jinja2_filter_density
-        template = env.get_template(template)
-
-        self.stylesheet = template.render(self.theme_variables)
+        self.stylesheet = self.__render_stylesheet_template(template, loader)
         css_output_name = (
             os.path.splitext(os.path.basename(template_file_path))[0] + ".css"
         )
         self.__export_internal_stylesheet(css_output_name)
-        return True
+        return
 
-    def __export_internal_stylesheet(self, filename: str) -> bool:
+    def __render_stylesheet_template(self, template_name: str, loader : jinja2.BaseLoader) -> str:
+        """
+        Renders a stylesheet template using Jinja2 with custom filters and theme variables.
+
+        Args:
+            template (str): The name of the Jinja2 template file to render.
+            loader (jinja2.BaseLoader): The Jinja2 template loader instance.
+
+        Side Effects:
+            Sets the rendered stylesheet to the `self.stylesheet` attribute.
+
+        Filters:
+            - "opacity": Uses the `jinja2_filter_opacity` function.
+            - "density": Uses the `jinja2_filter_density` function.
+
+        """
+        env = jinja2.Environment(autoescape=False, loader=loader)
+        env.filters["opacity"] = jinja2_filter_opacity
+        env.filters["density"] = jinja2_filter_density
+        template = env.get_template(template_name)
+        return template.render(self.theme_variables)
+    
+
+    def __export_internal_stylesheet(self, filename: str) -> None:
         """
         Export the internal generated stylesheet to a file.
 
@@ -417,7 +418,8 @@ class QtAdvancedStylesheet(QObject):
         """
         return self.__store_stylesheet(self.stylesheet, filename)
 
-    def __store_stylesheet(self, stylesheet: str, filename: str) -> bool:
+
+    def __store_stylesheet(self, stylesheet: str, filename: str) -> None:
         """
         Store the given stylesheet content to the specified filename.
         """
@@ -427,54 +429,45 @@ class QtAdvancedStylesheet(QObject):
 
         output_file = QFile(output_filename)
         if not output_file.open(QIODevice.OpenModeFlag.WriteOnly):
-            self.__set_error(
-                self.Error.CSS_EXPORT_ERROR,
-                f"Exporting stylesheet {filename} caused error: {output_file.errorString()}",
+            raise CssExportError(
+                f"Exporting stylesheet {filename} caused error: {output_file.errorString()}"
             )
-            return False
 
         # Write the stylesheet as UTF-8 bytes
         output_file.write(QByteArray(bytes(stylesheet, "utf-8")))
         output_file.close()
-        return True
+
 
     def __parse_variables_from_xml(
         self, reader: QXmlStreamReader, tag_name: str, variables: Dict[str, str]
-    ) -> bool:
+    ) -> None:
         """
         Parse a list of theme variables from an XML stream.
         """
         while reader.readNextStartElement():
             current_name = reader.name()
             if current_name != tag_name:
-                self.__set_error(
-                    self.Error.THEME_XML_ERROR,
-                    f"Malformed theme file - expected tag <{tag_name}> instead of <{current_name}>",
+                raise ThemeXmlError(
+                    f"Malformed theme file - expected tag <{tag_name}> instead of <{current_name}>"
                 )
-                return False
 
             name = reader.attributes().value("name")
             if not name:
-                self.__set_error(
-                    self.Error.THEME_XML_ERROR,
-                    f"Malformed theme file - 'name' attribute missing in <{tag_name}> tag",
+                raise ThemeXmlError(
+                    f"Malformed theme file - 'name' attribute missing in <{tag_name}> tag"
                 )
-                return False
             name_str = name  # PySide6 returns QString or str depending on binding
 
             value = reader.readElementText(QXmlStreamReader.ReadElementTextBehaviour.SkipChildElements)
             if not value:
-                self.__set_error(
-                    self.Error.THEME_XML_ERROR,
-                    f"Malformed theme file - text of <{tag_name}> tag is empty",
+                raise ThemeXmlError(
+                    f"Malformed theme file - text of <{tag_name}> tag is empty"
                 )
-                return False
 
             variables[name_str] = value
 
-        return True
 
-    def __parse_theme_file(self, theme_filename: str) -> bool:
+    def __parse_theme_file(self, theme_filename: str) -> None:
         """
         Parse the theme file given by filename.
         """
@@ -483,19 +476,14 @@ class QtAdvancedStylesheet(QObject):
         )
         theme_file = QFile(theme_file_name)
         if not theme_file.open(QIODevice.ReadOnly):
-            self.__set_error(
-                self.Error.THEME_XML_ERROR, f"Cannot open theme file: {theme_file_name}"
-            )
-            return False
+            raise ThemeXmlError(f"Cannot open theme file: {theme_file_name}")
 
         xml_reader = QXmlStreamReader(theme_file)
         xml_reader.readNextStartElement()
         if xml_reader.name() != "resources":
-            self.__set_error(
-                self.Error.THEME_XML_ERROR,
-                f"Malformed theme file - expected tag <resources> instead of <{xml_reader.name()}>",
+            raise ThemeXmlError(
+                f"Malformed theme file - expected tag <resources> instead of <{xml_reader.name()}>"
             )
-            return False
 
         dark_attr = xml_reader.attributes().value("dark")
         if not dark_attr:
@@ -505,48 +493,36 @@ class QtAdvancedStylesheet(QObject):
             self.is_dark_theme = int(dark_attr) == 1
 
         color_variables: Dict[str, str] = {}
-        if not self.__parse_variables_from_xml(xml_reader, "color", color_variables):
-            # parse_variables_from_xml should set the error internally
-            return False
-
+        self.__parse_variables_from_xml(xml_reader, "color", color_variables)
         self.theme_variables = self.style_variables.copy()
         self.theme_variables.update(color_variables)
-        self.theme_colors = color_variables
+        self.theme_color_variables = color_variables
+        return
 
-        return True
-    
 
-    def __parse_style_json_file(self) -> bool:
+    def __parse_style_json_file(self) -> None:
         """
         Parse the style JSON file.
         """
         style_path = Path(self.current_style_path())
         json_files = list(style_path.glob("*.json"))
 
-        if len(json_files) < 1:
-            self.__set_error(QtAdvancedStylesheet.Error.STYLE_JSON_ERROR,
-                           "Stylesheet folder does not contain a style json file")
-            return False
+        if not json_files:
+            raise StyleJsonError("Stylesheet folder does not contain a style JSON file")
 
         if len(json_files) > 1:
-            self.__set_error(QtAdvancedStylesheet.Error.STYLE_JSON_ERROR,
-                           "Stylesheet folder contains multiple theme json files")
-            return False
+            raise StyleJsonError("Stylesheet folder contains multiple theme JSON files")
 
         try:
             with open(json_files[0], 'r', encoding='utf-8') as f:
                 json_data = json.load(f)
         except Exception as e:
-            self.__set_error(QtAdvancedStylesheet.Error.STYLE_JSON_ERROR,
-                           f"Loading style json file caused error: {str(e)}")
-            return False
+            raise StyleJsonError(f"Loading style JSON file caused error: {str(e)}") from e
 
         self.json_style_param = json_data
         self.style_name = json_data.get("name", "")
         if not self.style_name:
-            self.__set_error(QtAdvancedStylesheet.Error.STYLE_JSON_ERROR,
-                           'No key "name" found in style json file')
-            return False
+            raise StyleJsonError('No key "name" found in style JSON file')
 
         variables = json_data.get("variables", {})
         if not isinstance(variables, dict):
@@ -560,30 +536,10 @@ class QtAdvancedStylesheet(QObject):
 
         self.default_theme = json_data.get("default_theme", "")
         if not self.default_theme:
-            self.__set_error(QtAdvancedStylesheet.Error.STYLE_JSON_ERROR,
-                           'No key "default_theme" found in style json file')
-            return False
-        return True
+            raise StyleJsonError('No key "default_theme" found in style JSON file')
 
-    def __rgba_color(self, rgb_color: str, opacity: float) -> str:
-        """
-        Create an RGBA color string from a given RGB color string and opacity.
 
-        Args:
-            rgb_color (str): The base RGB color (e.g. "#ff0000").
-            opacity (float): Opacity value from 0.0 (transparent) to 1.0 (opaque).
-
-        Returns:
-            str: The resulting RGBA color string.
-        """
-        alpha = int(255 * opacity)
-        # Format alpha as a two-digit hexadecimal string, zero-padded
-        alpha_hex = f"{alpha:02x}"
-        # Insert alpha after the '#' character (at index 1)
-        rgba_color = rgb_color[:1] + alpha_hex + rgb_color[1:]
-        return rgba_color
-
-    def __add_fonts(self, dir: Optional["QDir"] = None) -> None:
+    def __add_fonts(self, fonts_dir: Optional["QDir"] = None) -> None:
         """
         Register style fonts to the font database.
 
@@ -610,24 +566,26 @@ class QtAdvancedStylesheet(QObject):
                 font_path = dir.absoluteFilePath(font_file)
                 QFontDatabase.addApplicationFont(font_path)
 
+
     def __generate_resources_for(
         self, sub_dir: str, json_object: Dict[str, Any], entries: List[QFileInfo]
-    ) -> bool:
+    ) -> None:
         """
         Generate resources for various states from JSON and file entries.
+
+        Raises:
+            ResourceGenerationError: If resource output folder creation, reading SVGs, or writing output fails.
         """
         output_dir = self.current_style_output_path() / sub_dir
         if not QDir().mkpath(str(output_dir)):
-            self.__set_error(self.Error.RESOURCE_GENERATOR_ERROR, f"Error creating resource output folder: {output_dir}")
-            return False
+            raise ResourceGeneratorError(f"Error creating resource output folder: {output_dir}")
 
         color_replace_list = self.__parse_color_replace_list(json_object)
 
         for entry in entries:
             svg_file = QFile(entry.absoluteFilePath())
             if not svg_file.open(QIODevice.OpenModeFlag.ReadOnly):
-                self.__set_error(self.Error.RESOURCE_GENERATOR_ERROR, f"Failed to open SVG file: {entry.fileName()}")
-                return False
+                raise ResourceGeneratorError(f"Failed to open SVG file: {entry.fileName()}")
 
             content = svg_file.readAll()
             svg_file.close()
@@ -637,13 +595,10 @@ class QtAdvancedStylesheet(QObject):
             output_filename = output_dir / entry.fileName()
             output_file = QFile(output_filename)
             if not output_file.open(QIODevice.OpenModeFlag.WriteOnly):
-                self.__set_error(self.Error.RESOURCE_GENERATOR_ERROR, f"Failed to open output file: {output_filename}")
-                return False
+                raise ResourceGeneratorError(f"Failed to open output file: {output_filename}")
 
             output_file.write(content)
             output_file.close()
-
-        return True
     
 
     def __replace_color(
@@ -663,20 +618,6 @@ class QtAdvancedStylesheet(QObject):
         content.replace(template_color.encode('latin1'), theme_color.encode('latin1'))
         return
 
-    def __set_error(
-        self, error: "QtAdvancedStylesheet.Error", error_string: str
-    ) -> None:
-        """
-        Set the current error code and string.
-        """
-        self._error = error
-        self._error_string = error_string
-
-    def __clear_error(self) -> None:
-        """
-        Clear the current error state.
-        """
-        self.__set_error(QtAdvancedStylesheet.Error.NO_ERROR, "")
 
     def __parse_palette_from_json(self) -> None:
         """
@@ -694,6 +635,7 @@ class QtAdvancedStylesheet(QObject):
         self.__parse_palette_color_group(palette, QPalette.ColorGroup.Disabled)
         self.__parse_palette_color_group(palette, QPalette.ColorGroup.Inactive)
 
+
     def __parse_palette_color_group(self, j_palette: Dict[str, Any], color_group: QPalette.ColorGroup) -> None:
         """
         Parse color roles for a given palette color group from a JSON-like dictionary.
@@ -710,21 +652,9 @@ class QtAdvancedStylesheet(QObject):
 
         for role_name, color_value in j_color_group.items():
             color_role = color_role_from_string(role_name)
-            if color_role == QPalette.ColorRole.NoRole:
-                continue
+            if color_role != QPalette.ColorRole.NoRole:
+                self.palette_colors.append(PaletteColorEntry(group=color_group, role=color_role, color_variable=str(color_value)))
 
-            self.palette_colors.append(PaletteColorEntry(group=color_group, role=color_role, color_variable=str(color_value)))
-
-            # Note: The C++ version doesn't do anything inside this "if" block.
-            # If logic is needed here for Active group, implement it.
-            if color_group != QPalette.ColorGroup.Active:
-                continue
-
-    def __icon_color_replace_list(self) -> "tColorReplaceList":
-        """
-        Accessor for the icon color replace list, ensures proper initialization.
-        """
-        return self._icon_color_replace_list
 
     def __parse_color_replace_list(
         self, json_object: Dict[str, str]
@@ -747,42 +677,25 @@ class QtAdvancedStylesheet(QObject):
 
         return color_replace_list
 
-    def set_styles_dir_path(self, dir_path: str) -> None:
-        """
-        Sets the directory path where styles are located and populates
-        the list of style directories (excluding '.' and '..').
 
+    def set_styles_dir_path(self, dir_path: Path) -> None:
+        """
+        Sets the directory path where style subdirectories are located.
         Args:
-            dir_path (str): The path to the styles directory.
+            dir_path (Path): The path to the directory containing style subdirectories.
+        Raises:
+            NotADirectoryError: If the provided path is not a directory.
+        Side Effects:
+            - Updates the `styles_dir` attribute with the given directory path.
+            - Populates the `_styles` attribute with the names of all subdirectories within the given directory.
         """
-        self.styles_dir = dir_path
+        path = Path(dir_path)
+        if not path.is_dir():
+            raise NotADirectoryError(f"The given path '{path}' is not a directory.")
 
-        if os.path.isdir(self.styles_dir):
-            # List subdirectories only, excluding '.' and '..'
-            self._styles = [
-                name for name in os.listdir(self.styles_dir)
-                if os.path.isdir(os.path.join(self.styles_dir, name))
-            ]
-        else:
-            self._styles = []
+        self.styles_dir = path
+        self.styles = [p.name for p in path.iterdir() if p.is_dir()]
 
-    def styles_dir_path(self) -> str:
-        """
-        Get the currently set styles directory path.
-
-        Returns:
-            str: The styles directory path.
-        """
-        return self.styles_dir
-
-    def current_style(self) -> str:
-        """
-        Get the name of the current style.
-
-        Returns:
-            str: The current style name.
-        """
-        return self._current_style
 
     def current_style_path(self) -> Path:
         """
@@ -791,34 +704,8 @@ class QtAdvancedStylesheet(QObject):
         Returns:
             Path: Absolute path to the current style.
         """
-        return Path(self.styles_dir) / self._current_style
+        return Path(self.styles_dir) / self.current_style
 
-    def styles(self) -> List[str]:
-        """
-        Get the list of available styles in the styles directory.
-
-        Returns:
-            List[str]: List of style names.
-        """
-        return self._styles
-
-    def themes(self) -> List[str]:
-        """
-        Get the list of all themes available for the current style.
-
-        Returns:
-            List[str]: List of theme names; empty if no style set.
-        """
-        return self._themes
-
-    def theme_color_variables(self) -> Dict[str, str]:
-        """
-        Get all theme variables related to colors.
-
-        Returns:
-            Dict[str, str]: Dictionary mapping variable names to color values.
-        """
-        raise NotImplementedError
 
     def path(self, location: Location) -> Path:
         """
@@ -847,7 +734,7 @@ class QtAdvancedStylesheet(QObject):
         Returns:
             Path: Output path for the current style.
         """
-        return Path(self.output_dir) / self._current_style
+        return Path(self.output_dir) / self.current_style
 
     def theme_variable_value(self, variable_id: str) -> str:
         """
@@ -870,8 +757,8 @@ class QtAdvancedStylesheet(QObject):
             value (str): The new value to assign.
         """
         self.theme_variables[variable_id] = value
-        if variable_id in self.theme_colors:
-            self.theme_colors[variable_id] = value
+        if variable_id in self.theme_color_variables:
+            self.theme_color_variables[variable_id] = value
 
     def theme_color(self, variable_id: str) -> QColor:
         """
@@ -883,7 +770,7 @@ class QtAdvancedStylesheet(QObject):
         Returns:
             QColor: The corresponding color, or an invalid QColor if not found.
         """
-        color_string = self.theme_colors.get(variable_id, "")
+        color_string = self.theme_color_variables.get(variable_id, "")
         if not color_string:
             return QColor()  # Invalid color
         return QColor(color_string)
@@ -891,43 +778,43 @@ class QtAdvancedStylesheet(QObject):
 
     def process_stylesheet_template(self, template: str, output_file: str = "") -> str:
         """
-        Replace style variables in the given template with registered style variables.
+        Process a stylesheet template by replacing all template variables,
+        and optionally write the result to an output file.
 
         Args:
-            template (str): Stylesheet template content.
-            output_file (str): Optional output filename to store generated stylesheet.
+            template (str): The raw stylesheet template content.
+            output_file (str): Optional filename to save the processed stylesheet.
 
         Returns:
-            str: Final processed stylesheet or empty string on error.
+            str: The processed stylesheet content.
         """
-        raise NotImplementedError
+        # Perform variable replacement in the template
+        template_name = "stylesheet_template"
+        loader = jinja2.DictLoader({template_name : template})
+        stylesheet = self.__render_stylesheet_template(template_name, loader)
+
+        # If an output filename was provided, store the stylesheet
+        if output_file:
+            self.__store_stylesheet(stylesheet, output_file)
+        return stylesheet
+
 
     def style_icon(self) -> QIcon:
         """
-        Get the icon for the current style.
+        Lazily load and return the icon for the current style.
+
+        If no icon has been loaded yet and an icon filename is configured,
+        the icon will be loaded from the style directory.
 
         Returns:
-            QIcon: The style icon, or empty QIcon if none.
+            QIcon: The style icon, or an empty QIcon if none is specified.
         """
-        raise NotImplementedError
+        # Assume self._icon: QIcon and self.icon_file: str are initialized elsewhere
+        if self.icon.isNull() and self.icon_file:
+            icon_path = Path(self.current_style_path()) / self.icon_file
+            self.icon = QIcon(str(icon_path))
+        return self.icon
 
-    def error(self) -> int:
-        """
-        Get the current error code.
-
-        Returns:
-            int: Current error code (eError enum).
-        """
-        raise NotImplementedError
-
-    def error_string(self) -> str:
-        """
-        Get a string describing the last error.
-
-        Returns:
-            str: Last error description.
-        """
-        raise NotImplementedError
 
     def generate_theme_palette(self) -> QPalette:
         """
@@ -1012,8 +899,6 @@ class QtAdvancedStylesheet(QObject):
         Returns:
             bool: True if the theme was set successfully, False otherwise.
         """
-        self.__clear_error()
-
         if not self.json_style_param:
             return False
 
@@ -1024,13 +909,15 @@ class QtAdvancedStylesheet(QObject):
         self.current_theme_changed.emit(self._current_theme)
         return True
 
+
     def set_default_theme(self) -> None:
         """
         Set the default theme specified in the style JSON file.
         """
         self.set_current_theme(self.default_theme)
 
-    def set_current_style(self, style: str) -> bool:
+
+    def set_current_style(self, style: str) -> None:
         """
         Set the current style and trigger related updates.
 
@@ -1040,28 +927,18 @@ class QtAdvancedStylesheet(QObject):
         Returns:
             bool: True if the style was successfully loaded, False otherwise.
         """
-        self.__clear_error()
-        self._current_style = style
-
+        self.current_style = style
         themes_path = Path(self.path(self.Location.THEMES_LOCATION))
         xml_files = themes_path.glob("*.xml")
-        self._themes: List[str] = [f.stem for f in xml_files]
-
-        result = self.__parse_style_json_file()
-
-        # Replace QDir.addSearchPath with a method or global mechanism as needed
-        #icon_path = self.current_style_output_path()
-        #os.environ["ICON_PATH"] = icon_path  # or another method to inject into search paths
+        self.themes: List[str] = [f.stem for f in xml_files]
+        self.__parse_style_json_file()
         QDir.addSearchPath("icon", self.current_style_output_path())
-
         self.__add_fonts()
+        self.current_style_changed.emit(self.current_style)
+        self.stylesheet_changed.emit()
 
-        #self.current_style_changed.emit(self._current_style)
-        #self.stylesheet_changed.emit()
 
-        return result
-
-    def update_stylesheet(self) -> bool:
+    def update_stylesheet(self) -> None:
         """
         Update the stylesheet by processing the style template, refreshing icons,
         and generating the final stylesheet. Emits `stylesheetChanged` signal upon success.
@@ -1069,19 +946,14 @@ class QtAdvancedStylesheet(QObject):
         Returns:
             bool: True if the stylesheet was updated successfully, False otherwise.
         """
-        if not self.process_style_template():
-            return False
-
+        self.process_style_template()
         self._icon_color_replace_list.clear()
         SvgIconEngine.update_all_icons()
-
-        if not self.__generate_stylesheet() and self.error() != QtAdvancedStylesheet.Error.NO_ERROR:
-            return False
-
+        self.__generate_stylesheet()
         self.stylesheet_changed.emit()
-        return True
 
-    def process_style_template(self) -> bool:
+
+    def process_style_template(self) -> None:
         """
         Update SVG files and application palette without generating the stylesheet.
 
@@ -1089,40 +961,34 @@ class QtAdvancedStylesheet(QObject):
             bool: True if successful, False otherwise.
         """
         self.update_application_palette_colors()
-        return self.generate_resources()
+        self.generate_resources()
+        
 
-    def generate_resources(self) -> bool:
+    def generate_resources(self) -> None:
         """
-        Generate themed resources (like recolored SVGs) based on JSON description.
+        Generate themed resources (like recolored SVGs) based on the 'resources'
+        section of the style JSON.
 
-        Returns:
-            bool: True if all resources were generated successfully, otherwise False.
+        Raises:
+            StyleJsonError: If the JSON is missing the 'resources' key or any
+                            resource definition is invalid.
+            ResourceGenerationError: If generating resources for a given group fails.
         """
         resource_dir = QDir(self.path(self.Location.RESOURCE_TEMPLATES_LOCATION))
         entries: List[QFileInfo] = resource_dir.entryInfoList(["*.svg"], QDir.Filter.Files)
 
-        jresources = self.json_style_param.get("resources", {})
+        jresources: Dict[str, Any] = self.json_style_param.get("resources", {})
         if not jresources:
-            self.__set_error(
-                self.Error.STYLE_JSON_ERROR,
-                "Key 'resources' missing in style JSON file"
-            )
-            return False
+            raise StyleJsonError("Key 'resources' missing in style JSON file")
 
-        result = True
-        for key, param in jresources.items():
-            if not isinstance(param, dict) or not param:
-                self.__set_error(
-                    self.Error.STYLE_JSON_ERROR,
-                    f"Key 'resources' missing or empty for '{key}'"
-                )
-                result = False
-                continue
-
-            if not self.__generate_resources_for(key, param, entries):
-                result = False
-
-        return result
+        for group_name, params in jresources.items():
+            if not isinstance(params, dict) or not params:
+                raise StyleJsonError(f"Key 'resources' missing or empty for '{group_name}'")
+            try:
+                self.__generate_resources_for(group_name, params, entries)
+            except Exception as e:
+                # wrap lower-level exception if necessary
+                raise ResourceGeneratorError(f"Failed to generate resources for '{group_name}': {e}") from e
 
     def update_application_palette_colors(self) -> None:
         """
