@@ -5,6 +5,7 @@ import json
 import re
 from pathlib import Path
 import weakref
+import jinja2
 from dataclasses import dataclass
 from PySide6.QtGui import (
     QIconEngine,
@@ -229,6 +230,83 @@ def color_group_string(color_group: QPalette.ColorGroup) -> str:
     return mapping.get(color_group, "")
 
 
+class QtAdvancedStylesheetError(Exception):
+    """Base exception for all stylesheet errors."""
+    pass
+
+class CssTemplateError(QtAdvancedStylesheetError):
+    """Raised when there is a CSS template processing error."""
+    pass
+
+class CssExportError(QtAdvancedStylesheetError):
+    """Raised when stylesheet export fails."""
+    pass
+
+class ThemeXmlError(QtAdvancedStylesheetError):
+    """Raised when there is an error parsing the theme XML."""
+    pass
+
+class StyleJsonError(QtAdvancedStylesheetError):
+    """Raised when there is an error in the style JSON."""
+    pass
+
+class ResourceGeneratorError(QtAdvancedStylesheetError):
+    """Raised when resource generation fails."""
+    pass
+
+
+def jinja2_filter_opacity(theme, value=0.5):
+    """
+    Converts a hex color string from a theme into an RGBA color string with the specified opacity.
+    Args:
+        theme (str): A hex color string (e.g., "#RRGGBB").
+        value (float, optional): The opacity value for the RGBA color (default is 0.5).
+    Returns:
+        str: The color in "rgba(r, g, b, value)" format suitable for CSS.
+    Example:
+        >>> jinja2_filter_opacity("#FFAA33", 0.8)
+        'rgba(255, 170, 51, 0.8)'
+    """
+    r, g, b = theme[1:][0:2], theme[1:][2:4], theme[1:][4:]
+    r, g, b = int(r, 16), int(g, 16), int(b, 16)
+
+    return f"rgba({r}, {g}, {b}, {value})"
+
+
+def jinja2_filter_density(value, density_scale, border=0, scale=1, density_interval=4, min_=4):
+    """
+    Calculates a density value for UI elements based on input value, density scale, border, and other parameters.
+    Args:
+        value (str|float|int): The base value to be adjusted. Can be a string (e.g., "16px", "@icon") or a numeric value.
+        density_scale (int|float): The density scale factor to apply.
+        border (int|float, optional): The border width to subtract from the calculation. Defaults to 0.
+        scale (int|float, optional): A multiplier to scale the final density value. Defaults to 1.
+        density_interval (int|float, optional): The interval to use for density scaling. Defaults to 4.
+        min_ (int|float, optional): The minimum value to return if the calculated density is less than or equal to zero. Defaults to 4.
+    Returns:
+        float|str: The calculated density value, or a string if the input value is a special case (e.g., starts with "@" or is "unset").
+    Notes:
+        - If `value` is a string starting with "@", returns the string without "@" repeated `scale` times.
+        - If `value` is "unset", returns "unset".
+        - If the calculated density is less than or equal to zero, returns `min_`.
+    """
+    # https://material.io/develop/web/supporting/density
+    if isinstance(value, str) and value.startswith("@"):
+        return value[1:] * scale
+
+    if value == "unset":
+        return "unset"
+
+    if isinstance(value, str):
+        value = float(value.replace("px", ""))
+
+    density = (value + (density_interval * int(density_scale)) - (border * 2)) * scale
+
+    if density <= 0:
+        density = min_
+    return density
+
+
 class QtAdvancedStylesheet(QObject):
     """
     Encapsulates all information about a single stylesheet-based style.
@@ -313,17 +391,14 @@ class QtAdvancedStylesheet(QObject):
             )
             return False
 
-        try:
-            with open(template_file_path, "r", encoding="utf-8") as file:
-                css_template = file.read()
-        except Exception as e:
-            self.__set_error(
-                self.Error.CSS_TEMPLATE_ERROR,
-                f"Failed to read CSS template file: {str(e)}",
-            )
-            return False
+        parent, template = os.path.split(template_file_path)
+        loader = jinja2.FileSystemLoader(parent)
+        env = jinja2.Environment(autoescape=False, loader=loader)
+        env.filters["opacity"] = jinja2_filter_opacity
+        env.filters["density"] = jinja2_filter_density
+        template = env.get_template(template)
 
-        self.stylesheet = self.__replace_stylesheet_variables(css_template)
+        self.stylesheet = template.render(self.theme_variables)
         css_output_name = (
             os.path.splitext(os.path.basename(template_file_path))[0] + ".css"
         )
@@ -507,28 +582,6 @@ class QtAdvancedStylesheet(QObject):
         # Insert alpha after the '#' character (at index 1)
         rgba_color = rgb_color[:1] + alpha_hex + rgb_color[1:]
         return rgba_color
-
-    def __replace_stylesheet_variables(self, template: str) -> str:
-        """
-        Replace stylesheet variables in the given template string.
-        """
-        opacity_str = "opacity("
-        pattern = re.compile(r"\{\{(.*?)\}\}")  # capture inside {{...}}
-
-        def replace_match(match: re.Match) -> str:
-            template_variable = match.group(1)
-            if template_variable.endswith(')'):
-                var_name, opacity_expr = template_variable.split('|')
-                value = self.theme_variable_value(var_name)
-                try:
-                    opacity = float(opacity_expr[len(opacity_str):-1])
-                except ValueError:
-                    opacity = 1.0
-                return self.__rgba_color(value, opacity)
-            else:
-                return self.theme_variable_value(template_variable)
-
-        return pattern.sub(replace_match, template)
 
     def __add_fonts(self, dir: Optional["QDir"] = None) -> None:
         """
