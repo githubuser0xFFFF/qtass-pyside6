@@ -558,8 +558,8 @@ class QtAdvancedStylesheet(QObject):
         """
         Generate resources for various states from JSON and file entries.
         """
-        output_dir = self.current_style_output_path() + "/" + sub_dir
-        if not QDir().mkpath(output_dir):
+        output_dir = self.current_style_output_path() / sub_dir
+        if not QDir().mkpath(str(output_dir)):
             self.__set_error(self.Error.RESOURCE_GENERATOR_ERROR, f"Error creating resource output folder: {output_dir}")
             return False
 
@@ -586,6 +586,7 @@ class QtAdvancedStylesheet(QObject):
             output_file.close()
 
         return True
+    
 
     def __replace_color(
         self, content: QByteArray, template_color: str, theme_color: str
@@ -668,12 +669,25 @@ class QtAdvancedStylesheet(QObject):
         return self._icon_color_replace_list
 
     def __parse_color_replace_list(
-        self, json_object: Dict[str, Any]
+        self, json_object: Dict[str, str]
     ) -> "tColorReplaceList":
         """
-        Parse a color replace list from the given JSON object.
+        Parses a JSON object describing color replacements.
+
+        Args:
+            json_object (Dict[str, str]): A dictionary mapping template color strings to theme color variables or values.
+
+        Returns:
+            List[Tuple[str, str]]: A list of (template_color, theme_color) pairs.
         """
-        raise NotImplementedError
+        color_replace_list: tColorReplaceList = []
+
+        for template_color, theme_color in json_object.items():
+            if not theme_color.startswith("#"):
+                theme_color = self.theme_variable_value(theme_color)
+            color_replace_list.append((template_color, theme_color))
+
+        return color_replace_list
 
     def set_styles_dir_path(self, dir_path: str) -> None:
         """
@@ -787,7 +801,7 @@ class QtAdvancedStylesheet(QObject):
         Returns:
             str: Variable value or empty string if not found.
         """
-        raise NotImplementedError
+        return self.theme_variables.get(variable_id, "")
 
     def set_theme_variable_value(self, variable_id: str, value: str) -> None:
         """
@@ -797,7 +811,9 @@ class QtAdvancedStylesheet(QObject):
             variable_id (str): The theme variable identifier.
             value (str): The new value to assign.
         """
-        raise NotImplementedError
+        self.theme_variables[variable_id] = value
+        if variable_id in self.theme_colors:
+            self.theme_colors[variable_id] = value
 
     def theme_color(self, variable_id: str) -> QColor:
         """
@@ -900,7 +916,7 @@ class QtAdvancedStylesheet(QObject):
     def replace_svg_colors(
         self,
         svg_content: QByteArray,
-        color_replace_list: Optional[List[Tuple[str, str]]] = None,
+        color_replace_list: tColorReplaceList | None = None
     ) -> None:
         """
         Replace SVG colors in the provided SVG content with theme colors.
@@ -909,7 +925,10 @@ class QtAdvancedStylesheet(QObject):
             svg_content (QByteArray): The SVG data to modify.
             color_replace_list (Optional[List[Tuple[str, str]]]): Optional list of color replacements.
         """
-        raise NotImplementedError
+        color_replace_list = color_replace_list or self._icon_color_replace_list
+        for template_color, theme_color in color_replace_list:
+            self.__replace_color(svg_content, template_color, theme_color)
+            
 
     def load_theme_aware_svg_icon(self, filename: str) -> QIcon:
         """
@@ -1016,12 +1035,36 @@ class QtAdvancedStylesheet(QObject):
 
     def generate_resources(self) -> bool:
         """
-        Generate the required icons and SVG resources for the current theme.
+        Generate themed resources (like recolored SVGs) based on JSON description.
 
         Returns:
-            bool: True if successful, False otherwise.
+            bool: True if all resources were generated successfully, otherwise False.
         """
-        raise NotImplementedError
+        resource_dir = QDir(self.path(self.Location.RESOURCE_TEMPLATES_LOCATION))
+        entries: List[QFileInfo] = resource_dir.entryInfoList(["*.svg"], QDir.Filter.Files)
+
+        jresources = self.json_style_param.get("resources", {})
+        if not jresources:
+            self.__set_error(
+                self.Error.STYLE_JSON_ERROR,
+                "Key 'resources' missing in style JSON file"
+            )
+            return False
+
+        result = True
+        for key, param in jresources.items():
+            if not isinstance(param, dict) or not param:
+                self.__set_error(
+                    self.Error.STYLE_JSON_ERROR,
+                    f"Key 'resources' missing or empty for '{key}'"
+                )
+                result = False
+                continue
+
+            if not self.__generate_resources_for(key, param, entries):
+                result = False
+
+        return result
 
     def update_application_palette_colors(self) -> None:
         """
