@@ -1,0 +1,113 @@
+# This is the configuration file for the Poetry dependency manager.
+# 
+# [tool.poetry]
+# - `name`: The name of the Python package.
+# - `version`: The current version of the package.
+# - `description`: A brief description of the package's purpose.
+# - `packages`: Specifies the package(s) to include in the distribution. Here, it includes the "nv200" package.
+# - `authors`: A list of authors or maintainers of the package.
+# - `readme`: The file containing the long description of the package, typically displayed on package repositories.
+# - `include`: Specifies additional files or directories to include in the package distribution. In this case, all files in the "examples" directory and its subdirectories are included.
+[tool.poetry]
+name = "qtass"
+version = "0.0.1"
+description = "Python version of Qt Advanced Styplesheets Library"
+packages = [{include = "qtass"}]
+authors = ["Uwe Kindler"]
+readme = "README_PYPI.md"
+#include = ["examples/**/*"]
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers"
+]
+
+
+[tool.poetry.urls]
+Homepage = "https://gitlab.com/gitlabuser0xFFFF/nv200_python_lib"
+Source = "https://gitlab.com/gitlabuser0xFFFF/nv200_python_lib"
+"Bug Tracker" = "https://gitlab.com/gitlabuser0xFFFF/nv200_python_lib/-/issues"
+Documentation = "https://nv200-python-lib-e9158a.gitlab.io/"
+
+
+# This section defines the dependencies for the project using Poetry.
+# Each dependency specifies the required version range to ensure compatibility.
+
+# python: Specifies the Python version required for the project. 
+#         Supports Python 3.12 and any version below 4.0.
+
+# aioserial: A library for asynchronous serial communication.
+#            Requires version 1.3.1 or higher, but below 2.0.0.
+
+# asyncio: Provides support for asynchronous I/O operations.
+#          Requires version 3.4.3 or higher, but below 4.0.0.
+
+# psutil: A cross-platform library for retrieving information on 
+#         system utilization (CPU, memory, disks, network, sensors).
+#         Requires version 7.0.0 or higher, but below 8.0.0.
+
+# pyserial: A library for serial port communication.
+#           Requires version 3.5 or higher, but below 4.0.
+
+# telnetlib3: An asynchronous Telnet client and server library.
+#             Requires version 2.0.4 or higher, but below 3.0.0.
+[tool.poetry.dependencies]
+python = "^3.12,<3.14"
+pyside6 = "^6.9.0"
+
+
+
+[tool.poetry.group.dev.dependencies]
+# This section defines the development dependencies for the project using Poetry's
+# dependency grouping feature. The `[tool.poetry.group.dev.dependencies]` table
+# specifies packages required for development purposes, particularly for
+# documentation generation and theming:
+#
+# - `sphinx`: A tool for generating documentation, version 8.2.3 or compatible.
+# - `sphinx-rtd-theme`: The Read the Docs theme for Sphinx, version 3.0.2 or compatible.
+# - `sphinx-rtd-dark-mode`: Adds dark mode support to the Read the Docs theme, version 1.3.0 or compatible.
+# - `sphinx-fontawesome`: Enables the use of Font Awesome icons in Sphinx documentation, version 0.0.6 or compatible.
+sphinx = "^8.2.3"
+sphinx-rtd-theme = "^3.0.2"
+sphinx-rtd-dark-mode = "^1.3.0"
+sphinx-fontawesome = "^0.0.6"
+sphinx-togglebutton = "^0.3.2"
+tomlkit = "^0.13.2"
+sphinxcontrib-napoleon = "^0.7"
+
+
+
+[build-system]
+# This section defines the build system requirements for the project.
+# - The `requires` field specifies the dependencies needed to build the project.
+#   In this case, it requires `poetry-core` version 2.0.0 or higher, but less than 3.0.0.
+# - The `build-backend` field specifies the backend used for building the project.
+#   Here, it is set to `poetry_dynamic_versioning.backend`, which likely integrates
+#   dynamic versioning functionality into the build process.
+#   (The previously commented-out backend was `poetry.core.masonry.api`.)
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+#build-backend = "poetry_dynamic_versioning.backend"
+
+
+
+# [tool.poetry-dynamic-versioning]
+# # This section configures the "poetry-dynamic-versioning" plugin for Poetry.
+# # - `enable`: Enables the dynamic versioning functionality.
+# # - `vcs`: Specifies the version control system to use for versioning (e.g., "git").
+# # - `fix-shallow-repository`: Ensures compatibility with shallow Git repositories.
+# # - `bump`: Automatically increments the version based on changes in the repository.
+# # To use the plugin it needs to get installed via:
+# # pipx inject poetry "poetry-dynamic-versioning[plugin]
+# enable = true
+# vcs = "git"
+# fix-shallow-repository = true
+# bump = true
+# #format = "{base}"  # <- This removes the `+local` part
+# dirty = false
+# metadata = false # <== disables the +commit-hash suffix to avoid warnings when uploading to PyPI
+
+[tool.poetry.scripts]
+# Build the Sphinx documentation using the command "poetry run build-doc".
+#build-doc = "sphinx-build -b html doc/ doc/_build/"
