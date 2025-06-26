@@ -14,7 +14,8 @@ from PySide6.QtGui import (
     QIcon,
     QPalette,
     QColor,
-    QFontDatabase
+    QFontDatabase,
+    QPalette
 )
 from PySide6.QtCore import (
     QByteArray,
@@ -800,33 +801,19 @@ class QtAdvancedStylesheet(QObject):
 
     def theme_color(self, variable_id: str) -> QColor:
         """
-        Get the QColor for the specified theme variable.
+        Get a QColor from the theme's color mapping by variable ID.
 
         Args:
-            variable_id (str): The theme variable identifier.
+            variable_id (str): The color variable identifier.
 
         Returns:
-            QColor: The color associated with the variable or invalid QColor if not a color variable.
+            QColor: The corresponding color, or an invalid QColor if not found.
         """
-        raise NotImplementedError
+        color_string = self.theme_colors.get(variable_id, "")
+        if not color_string:
+            return QColor()  # Invalid color
+        return QColor(color_string)
 
-    def current_theme(self) -> str:
-        """
-        Get the name of the currently set theme.
-
-        Returns:
-            str: Current theme name.
-        """
-        raise NotImplementedError
-
-    def style_sheet(self) -> str:
-        """
-        Get the processed stylesheet for the current style and theme.
-
-        Returns:
-            str: The stylesheet content.
-        """
-        raise NotImplementedError
 
     def process_stylesheet_template(self, template: str, output_file: str = "") -> str:
         """
@@ -870,12 +857,27 @@ class QtAdvancedStylesheet(QObject):
 
     def generate_theme_palette(self) -> QPalette:
         """
-        Create a QPalette with the theme colors of the currently selected theme.
+        Generate a QPalette based on the current theme's palette configuration.
 
         Returns:
-            QPalette: Generated palette.
+            QPalette: The theme-based color palette.
         """
-        raise NotImplementedError
+        app = QApplication.instance()
+        if isinstance(app, QApplication):
+            palette: QPalette = app.palette()
+        else:
+            palette: QPalette = QPalette()
+
+        if self.palette_base_color:
+            color: QColor = self.theme_color(self.palette_base_color)
+            if color.isValid():
+                palette = QPalette(color)
+
+        for entry in self.palette_colors:
+            color = self.theme_color(entry.color_variable)
+            if color.isValid():
+                palette.setColor(entry.group, entry.role, color)
+        return palette
 
     def style_parameters(self) -> Dict[str, Any]:
         """
@@ -1009,7 +1011,8 @@ class QtAdvancedStylesheet(QObject):
         Returns:
             bool: True if successful, False otherwise.
         """
-        raise NotImplementedError
+        self.update_application_palette_colors()
+        return self.generate_resources()
 
     def generate_resources(self) -> bool:
         """
@@ -1022,6 +1025,8 @@ class QtAdvancedStylesheet(QObject):
 
     def update_application_palette_colors(self) -> None:
         """
-        Update the application's palette colors from the theme colors.
+        Update the application's palette colors using the generated theme palette.
         """
-        raise NotImplementedError
+        app = QApplication.instance()
+        if isinstance(app, QApplication):  # Ensure it's a QApplication
+            app.setPalette(self.generate_theme_palette())
