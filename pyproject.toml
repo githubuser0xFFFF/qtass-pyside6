@@ -9,7 +9,7 @@
 # - `readme`: The file containing the long description of the package, typically displayed on package repositories.
 # - `include`: Specifies additional files or directories to include in the package distribution. In this case, all files in the "examples" directory and its subdirectories are included.
 [tool.poetry]
-name = "qtass"
+name = "qtass-pyside6"
 version = "0.0.1"
 description = "Python version of Qt Advanced Styplesheets Library"
 packages = [{include = "qtass"}]
@@ -55,6 +55,7 @@ Documentation = "https://nv200-python-lib-e9158a.gitlab.io/"
 [tool.poetry.dependencies]
 python = "^3.12,<3.14"
 pyside6 = "^6.9.0"
+jinja2 = "^3.1.6"
 
 
 
@@ -87,26 +88,26 @@ sphinxcontrib-napoleon = "^0.7"
 #   dynamic versioning functionality into the build process.
 #   (The previously commented-out backend was `poetry.core.masonry.api`.)
 requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
-#build-backend = "poetry_dynamic_versioning.backend"
+#build-backend = "poetry.core.masonry.api"
+build-backend = "poetry_dynamic_versioning.backend"
 
 
 
-# [tool.poetry-dynamic-versioning]
-# # This section configures the "poetry-dynamic-versioning" plugin for Poetry.
-# # - `enable`: Enables the dynamic versioning functionality.
-# # - `vcs`: Specifies the version control system to use for versioning (e.g., "git").
-# # - `fix-shallow-repository`: Ensures compatibility with shallow Git repositories.
-# # - `bump`: Automatically increments the version based on changes in the repository.
-# # To use the plugin it needs to get installed via:
-# # pipx inject poetry "poetry-dynamic-versioning[plugin]
-# enable = true
-# vcs = "git"
-# fix-shallow-repository = true
-# bump = true
-# #format = "{base}"  # <- This removes the `+local` part
-# dirty = false
-# metadata = false # <== disables the +commit-hash suffix to avoid warnings when uploading to PyPI
+[tool.poetry-dynamic-versioning]
+# This section configures the "poetry-dynamic-versioning" plugin for Poetry.
+# - `enable`: Enables the dynamic versioning functionality.
+# - `vcs`: Specifies the version control system to use for versioning (e.g., "git").
+# - `fix-shallow-repository`: Ensures compatibility with shallow Git repositories.
+# - `bump`: Automatically increments the version based on changes in the repository.
+# To use the plugin it needs to get installed via:
+# pipx inject poetry "poetry-dynamic-versioning[plugin]
+enable = true
+vcs = "git"
+fix-shallow-repository = true
+bump = true
+#format = "{base}"  # <- This removes the `+local` part
+dirty = false
+metadata = false # <== disables the +commit-hash suffix to avoid warnings when uploading to PyPI
 
 [tool.poetry.scripts]
 # Build the Sphinx documentation using the command "poetry run build-doc".
