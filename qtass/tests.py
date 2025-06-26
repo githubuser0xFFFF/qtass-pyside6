@@ -76,7 +76,7 @@ def test_qtass():
     style.set_styles_dir_path("styles")
     print("Available styles:", style.styles())
     style.output_dir = "style_output"
-    style.set_current_style("metro")
+    style.set_current_style("material")
     style.set_default_theme()
     style.update_stylesheet()
 

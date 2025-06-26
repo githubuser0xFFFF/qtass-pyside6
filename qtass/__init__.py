@@ -348,8 +348,8 @@ class QtAdvancedStylesheet(QObject):
         Store the given stylesheet content to the specified filename.
         """
         output_path = self.current_style_output_path()
-        QDir().mkpath(output_path)  # Ensure the directory exists
-        output_filename = output_path + "/" + filename
+        Path(output_path).mkdir(parents=True, exist_ok=True)
+        output_filename = output_path / filename
 
         output_file = QFile(output_filename)
         if not output_file.open(QIODevice.OpenModeFlag.WriteOnly):
@@ -423,7 +423,12 @@ class QtAdvancedStylesheet(QObject):
             )
             return False
 
-        self.is_dark_theme = int(xml_reader.attributes().value("dark")) == 1
+        dark_attr = xml_reader.attributes().value("dark")
+        if not dark_attr:
+            # Fallback: check if filename starts with 'dark' (case-insensitive)
+            self.is_dark_theme = theme_filename.lower().startswith("dark")
+        else:
+            self.is_dark_theme = int(dark_attr) == 1
 
         color_variables: Dict[str, str] = {}
         if not self.__parse_variables_from_xml(xml_reader, "color", color_variables):
@@ -435,6 +440,7 @@ class QtAdvancedStylesheet(QObject):
         self.theme_colors = color_variables
 
         return True
+    
 
     def __parse_style_json_file(self) -> bool:
         """
@@ -576,7 +582,7 @@ class QtAdvancedStylesheet(QObject):
 
             self.replace_svg_colors(content, color_replace_list)
 
-            output_filename = output_dir + "/" + entry.fileName()
+            output_filename = output_dir / entry.fileName()
             output_file = QFile(output_filename)
             if not output_file.open(QIODevice.OpenModeFlag.WriteOnly):
                 self.__set_error(self.Error.RESOURCE_GENERATOR_ERROR, f"Failed to open output file: {output_filename}")
