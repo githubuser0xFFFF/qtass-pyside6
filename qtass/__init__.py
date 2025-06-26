@@ -315,7 +315,7 @@ class QtAdvancedStylesheet(QObject):
 
         try:
             with open(template_file_path, "r", encoding="utf-8") as file:
-                content = file.read()
+                css_template = file.read()
         except Exception as e:
             self.__set_error(
                 self.Error.CSS_TEMPLATE_ERROR,
@@ -323,8 +323,7 @@ class QtAdvancedStylesheet(QObject):
             )
             return False
 
-        self.__replace_stylesheet_variables(content)
-        self.stylesheet = content
+        self.stylesheet = self.__replace_stylesheet_variables(css_template)
         css_output_name = (
             os.path.splitext(os.path.basename(template_file_path))[0] + ".css"
         )
