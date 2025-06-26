@@ -10,7 +10,8 @@
         "line_height" : "12px",
         "danger" :  "#dc3545",
         "warning" : "#ffc107",
-        "success" : "#17a2b8"
+        "success" : "#17a2b8",
+        "density_scale" : "0"
     },
 
     "resources" : {

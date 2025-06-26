@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any, Tuple, TypeVar
+from typing import Optional, List, Dict, Any, Tuple, TypeVar, Union
 from enum import Enum, auto
 import os
 import json
@@ -678,7 +678,7 @@ class QtAdvancedStylesheet(QObject):
         return color_replace_list
 
 
-    def set_styles_dir_path(self, dir_path: Path) -> None:
+    def set_styles_dir_path(self, dir_path: Union[str, Path]) -> None:
         """
         Sets the directory path where style subdirectories are located.
         Args:

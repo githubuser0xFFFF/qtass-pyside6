@@ -107,3 +107,6 @@ __pycache__/
 
 # Secret configuration files
 secrets*.json
+
+# Qt recource compiler
+*_rc.py
