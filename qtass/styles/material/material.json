@@ -15,6 +15,11 @@
     },
 
     "resources" : {
+        "active" : {
+            "#0000ff" : "#707070",
+            "#ff0000" : "secondaryColor",
+            "#000000" : "#ffffff00"
+        },
         "primary" : {
             "#0000ff" : "primaryColor",
             "#ff0000" : "secondaryColor",

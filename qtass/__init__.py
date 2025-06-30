@@ -335,7 +335,7 @@ class QtAdvancedStylesheet(QObject):
 
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
-        self.styles_dir: Path = Path()
+        self.styles_dir: Path = Path(__file__).parent / "styles"
         self.output_dir: str = ""
         self.style_variables: Dict[str, str] = {}
         self.theme_color_variables: Dict[str, str] = {}
