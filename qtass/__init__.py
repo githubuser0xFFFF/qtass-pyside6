@@ -600,10 +600,8 @@ class QtAdvancedStylesheet(QObject):
             output_file.write(content)
             output_file.close()
     
-
-    def __replace_color(
-        self, content: QByteArray, template_color: str, theme_color: str
-    ) -> None:
+    @staticmethod
+    def __replace_color(content: QByteArray, template_color: str, theme_color: str) -> None:
         """
         Replace all occurrences of template_color in content with theme_color.
 
@@ -857,6 +855,18 @@ class QtAdvancedStylesheet(QObject):
             bool: True if dark theme, False if light theme.
         """
         raise NotImplementedError
+
+    @staticmethod
+    def replace_colors_in_svg(svg_content: QByteArray, color_replace_list: tColorReplaceList) -> None:
+        """
+        Replace colors in the provided SVG content with theme colors.
+
+        Args:
+            svg_content (QByteArray): The SVG data to modify.
+            color_replace_list (List[Tuple[str, str]]): List of color replacements.
+        """
+        for template_color, theme_color in color_replace_list:
+            QtAdvancedStylesheet.__replace_color(svg_content, template_color, theme_color)
 
     def replace_svg_colors(
         self,
