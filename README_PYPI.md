@@ -12,7 +12,7 @@ SVG resources and SVG icons. The image below shows switching of accent color
 and switching between dark and light theme. Notice how the icons in the left 
 sidebar change color when switching between dark and light theme.
 
-![color_switching](doc/CETONI_Elements_Styling.gif)
+![color_switching](https://raw.githubusercontent.com/githubuser0xFFFF/qtass-pyside6/refs/heads/main/doc/CETONI_Elements_Styling.gif)
 
 The main features are:
 
