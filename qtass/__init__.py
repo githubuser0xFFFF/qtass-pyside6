@@ -330,6 +330,9 @@ class QtAdvancedStylesheet(QObject):
     # Signal emitted when the selected theme within a style changes
     current_theme_changed = Signal(str)
 
+    # Signal emitted when the dark mode setting changes
+    dark_mode_changed = Signal(bool)
+
     # Signal emitted when the stylesheet changes due to style, theme, or variable update
     stylesheet_changed = Signal()
 
@@ -854,7 +857,7 @@ class QtAdvancedStylesheet(QObject):
         Returns:
             bool: True if dark theme, False if light theme.
         """
-        raise NotImplementedError
+        return self.is_dark_theme
 
     @staticmethod
     def replace_colors_in_svg(svg_content: QByteArray, color_replace_list: tColorReplaceList) -> None:
@@ -961,6 +964,7 @@ class QtAdvancedStylesheet(QObject):
         SvgIconEngine.update_all_icons()
         self.__generate_stylesheet()
         self.stylesheet_changed.emit()
+        self.dark_mode_changed.emit(self.is_current_theme_dark())
 
 
     def process_style_template(self) -> None:
