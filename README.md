@@ -144,14 +144,12 @@ The [CETONI Elements](https://youtu.be/xWTpCwCz8dI) software from
 [CETONI](https://www.cetoni.com) is a comprehensive,
 plugin-based and modular laboratory automation software for controlling CETONI devices using a joint graphical user interface. The software features a powerful script system to automate processes.
 
-CETONI Elements Dark Theme
-![CETONI_Elements Dark](doc/CETONI_Elements_Dark.png)
-
-CETONI Elements Light Theme
-![CETONI_Elements Light](doc/CETONI_Elements_Light.png)
+CETONI Elements Dark / Light Theme
+![CETONI Elements Theme](doc/cetoni_elements_split.png)
 
 ### [PySoWorks](https://github.com/piezosystemjena/PySoWorks)
 
 [PySoWorks](https://pypi.org/project/pysoworks/) is an application for controlling the piezo amplifiers, such as the [NV200/D](https://www.piezosystem.com/product/nv-200-d-compact-amplifier/), from [piezosystem jena](https://www.piezosystem.com/) GmbH. It demonstrates the use of the [NV200 Python library](https://pypi.org/project/nv200/) within a graphical interface based on PySide6.
 
-![PySoWorks Theme](doc/pysoworks_ui.png)
+PySoWorks Dark / Light Theme
+![PySoWorks Theme](doc/pysoworks_split.png)
