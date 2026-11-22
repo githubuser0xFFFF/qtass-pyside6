@@ -108,6 +108,17 @@ class AccentTests(unittest.TestCase):
         self.assertEqual(self.style.accent_source, AccentSource.THEME)
         self.assertEqual(color_role_from_string("Accent"), QPalette.ColorRole.Accent)
 
+    def test_accent_policy_can_be_selected_before_first_theme(self) -> None:
+        style = QtAdvancedStylesheet(accent_provider=self.provider)
+        style.output_dir = self.directory.name
+        style.set_current_style("metro")
+        style.set_accent_source(AccentSource.SYSTEM)
+        self.assertEqual(style.stylesheet, "")
+        self.assertTrue(style.set_current_theme("dark_orange"))
+        style.update_stylesheet()
+        self.assertEqual(style.accent_color().name(), "#0067c0")
+        style.deleteLater()
+
     def test_initialization_with_existing_widgets(self) -> None:
         widget = QWidget()
         other = QtAdvancedStylesheet(accent_provider=self.provider)

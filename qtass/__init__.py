@@ -817,7 +817,7 @@ class QtAdvancedStylesheet(QObject):
     def _refresh_accent(self) -> None:
         """Refresh only once the style and a concrete theme are available."""
         self._apply_accent_override()
-        if self.current_style and self.theme_color_variables and not self._updating_stylesheet:
+        if self.current_style and self._current_theme and not self._updating_stylesheet:
             self.update_stylesheet()
             app = QApplication.instance()
             if isinstance(app, QApplication):
