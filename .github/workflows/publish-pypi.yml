@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -30,7 +32,12 @@ jobs:
           pip install "poetry-dynamic-versioning[plugin]"
           poetry self add "poetry-dynamic-versioning[plugin]"
           poetry config virtualenvs.create false
-          poetry install --no-root
+          poetry install --without dev --no-root
+
+      - name: Run regression tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: poetry run python -m unittest discover -s tests -v
 
       - name: Publish to TestPyPI
         env:
@@ -47,6 +54,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -61,7 +70,12 @@ jobs:
           pip install "poetry-dynamic-versioning[plugin]"
           poetry self add "poetry-dynamic-versioning[plugin]"
           poetry config virtualenvs.create false
-          poetry install --no-root
+          poetry install --without dev --no-root
+
+      - name: Run regression tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: poetry run python -m unittest discover -s tests -v
 
       - name: Publish to PyPI
         env:

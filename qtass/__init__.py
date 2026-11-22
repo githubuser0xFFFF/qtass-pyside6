@@ -1,5 +1,6 @@
 from typing import Optional, List, Dict, Any, Tuple, TypeVar, Union
 from enum import Enum, auto
+from .system_accent import AccentProvider, SystemAccentProvider
 import os
 import json
 from pathlib import Path
@@ -138,6 +139,14 @@ class SvgIconEngine(QIconEngine):
         return pixmap
 
 
+class AccentSource(Enum):
+    """Choose the existing XML theme color, a fixed custom color, or the system accent."""
+
+    THEME = "theme"
+    CUSTOM = "custom"
+    SYSTEM = "system"
+
+
 @dataclass
 class PaletteColorEntry:
     """
@@ -182,6 +191,7 @@ def color_role_from_string(text: str) -> QPalette.ColorRole:
         "Window": QPalette.ColorRole.Window,
         "Shadow": QPalette.ColorRole.Shadow,
         "Highlight": QPalette.ColorRole.Highlight,
+        "Accent": QPalette.ColorRole.Accent,
         "HighlightedText": QPalette.ColorRole.HighlightedText,
         "Link": QPalette.ColorRole.Link,
         "LinkVisited": QPalette.ColorRole.LinkVisited,
@@ -329,6 +339,8 @@ class QtAdvancedStylesheet(QObject):
 
     # Signal emitted when the selected theme within a style changes
     current_theme_changed = Signal(str)
+    accent_source_changed = Signal(object)
+    accent_color_changed = Signal(QColor)
 
     # Signal emitted when the dark mode setting changes
     dark_mode_changed = Signal(bool)
@@ -336,8 +348,16 @@ class QtAdvancedStylesheet(QObject):
     # Signal emitted when the stylesheet changes due to style, theme, or variable update
     stylesheet_changed = Signal()
 
-    def __init__(self, parent: QObject | None = None):
+    def __init__(self, parent: QObject | None = None, *,
+                 accent_provider: AccentProvider | None = None) -> None:
         super().__init__(parent)
+        self._accent_source = AccentSource.THEME
+        self._custom_accent = QColor()
+        self._theme_accent = ""
+        self._effective_accent = QColor()
+        self._updating_stylesheet = False
+        self._accent_provider = accent_provider if accent_provider is not None else SystemAccentProvider(self)
+        self._accent_provider.changed.connect(self._system_accent_changed)
         self.styles_dir: Path = Path(__file__).parent / "styles"
         self.output_dir: str = ""
         self.style_variables: Dict[str, str] = {}
@@ -470,7 +490,7 @@ class QtAdvancedStylesheet(QObject):
             variables[name_str] = value
 
 
-    def __parse_theme_file(self, theme_filename: str) -> None:
+    def __parse_theme_file(self, theme_filename: str) -> bool:
         """
         Parse the theme file given by filename.
         """
@@ -500,7 +520,9 @@ class QtAdvancedStylesheet(QObject):
         self.theme_variables = self.style_variables.copy()
         self.theme_variables.update(color_variables)
         self.theme_color_variables = color_variables
-        return
+        self._theme_accent = color_variables.get("accentColor", "")
+        self._apply_accent_override()
+        return True
 
 
     def __parse_style_json_file(self) -> None:
@@ -554,19 +576,19 @@ class QtAdvancedStylesheet(QObject):
         if app is None or not isinstance(app, QApplication) or not app.allWidgets():
             return
 
-        if dir is None:
+        if fonts_dir is None:
             fonts_dir = QDir(self.path(QtAdvancedStylesheet.Location.FONTS_LOCATION))
             self.__add_fonts(fonts_dir)
         else:
             # Recursively add fonts from subdirectories
-            for folder in dir.entryList(QDir.Filter.Dirs | QDir.Filter.NoDotAndDotDot):
-                if dir.cd(folder):
-                    self.__add_fonts(dir)
-                    dir.cdUp()
+            for folder in fonts_dir.entryList(QDir.Filter.Dirs | QDir.Filter.NoDotAndDotDot):
+                if fonts_dir.cd(folder):
+                    self.__add_fonts(fonts_dir)
+                    fonts_dir.cdUp()
 
             # Add all .ttf font files from this directory
-            for font_file in dir.entryList(["*.ttf"], QDir.Filter.Files):
-                font_path = dir.absoluteFilePath(font_file)
+            for font_file in fonts_dir.entryList(["*.ttf"], QDir.Filter.Files):
+                font_path = fonts_dir.absoluteFilePath(font_file)
                 QFontDatabase.addApplicationFont(font_path)
 
 
@@ -737,6 +759,75 @@ class QtAdvancedStylesheet(QObject):
         """
         return Path(self.output_dir) / self.current_style
 
+    @property
+    def accent_source(self) -> AccentSource:
+        """Return the selected accent policy independently of theme XML variables."""
+        return self._accent_source
+
+    def accent_color(self) -> QColor:
+        """Return the effective accent color, or an invalid QColor before theme loading."""
+        return QColor(self._effective_accent)
+
+    def set_accent_source(self, source: AccentSource) -> None:
+        """Select a policy and refresh loaded CSS, palette and SVG resources.
+
+        CUSTOM requires a previously supplied valid custom color. SYSTEM falls
+        back to the current theme when no valid platform color is available.
+        Call only on this QObject's GUI thread. Preferences remain application-owned.
+        """
+        if not isinstance(source, AccentSource):
+            raise TypeError("source must be an AccentSource")
+        if source == AccentSource.CUSTOM and not self._custom_accent.isValid():
+            raise ValueError("Set a custom accent color before selecting CUSTOM.")
+        if source == self._accent_source:
+            return
+        self._accent_source = source
+        self._refresh_accent()
+        self.accent_source_changed.emit(source)
+
+    def set_accent_color(self, color: QColor | str) -> None:
+        """Validate a fixed color and activate CUSTOM; preserve it across theme switches."""
+        candidate = QColor(color)
+        if not candidate.isValid():
+            raise ValueError("Invalid accent color.")
+        changed_source = self._accent_source != AccentSource.CUSTOM
+        self._custom_accent = candidate
+        self._accent_source = AccentSource.CUSTOM
+        self._refresh_accent()
+        if changed_source:
+            self.accent_source_changed.emit(self._accent_source)
+
+    def _apply_accent_override(self) -> None:
+        """Resolve the accent after XML loading and before palette/resource generation."""
+        color = QColor(self._theme_accent)
+        if self._accent_source == AccentSource.CUSTOM:
+            color = QColor(self._custom_accent)
+        elif self._accent_source == AccentSource.SYSTEM:
+            system = self._accent_provider.color()
+            if system.isValid():
+                color = system
+        if color.isValid():
+            value = color.name(QColor.NameFormat.HexArgb) if color.alpha() != 255 else color.name()
+            self.theme_variables["accentColor"] = value
+            self.theme_color_variables["accentColor"] = value
+        if color != self._effective_accent:
+            self._effective_accent = QColor(color)
+            self.accent_color_changed.emit(QColor(color))
+
+    def _refresh_accent(self) -> None:
+        """Refresh only once the style and a concrete theme are available."""
+        self._apply_accent_override()
+        if self.current_style and self.theme_color_variables and not self._updating_stylesheet:
+            self.update_stylesheet()
+            app = QApplication.instance()
+            if isinstance(app, QApplication):
+                app.setStyleSheet(self.stylesheet)
+
+    def _system_accent_changed(self, color: QColor) -> None:
+        """Ignore native changes unless SYSTEM is selected; avoid palette feedback loops."""
+        if self._accent_source == AccentSource.SYSTEM:
+            self._refresh_accent()
+
     def theme_variable_value(self, variable_id: str) -> str:
         """
         Get the value of a given theme variable.
@@ -757,6 +848,17 @@ class QtAdvancedStylesheet(QObject):
             variable_id (str): The theme variable identifier.
             value (str): The new value to assign.
         """
+        if variable_id == "accentColor":
+            candidate = QColor(value)
+            if not candidate.isValid():
+                raise ValueError("Invalid accent color.")
+            self._custom_accent = candidate
+            changed_source = self._accent_source != AccentSource.CUSTOM
+            self._accent_source = AccentSource.CUSTOM
+            self._apply_accent_override()
+            if changed_source:
+                self.accent_source_changed.emit(self._accent_source)
+            return
         self.theme_variables[variable_id] = value
         if variable_id in self.theme_color_variables:
             self.theme_color_variables[variable_id] = value
@@ -959,10 +1061,17 @@ class QtAdvancedStylesheet(QObject):
         Returns:
             bool: True if the stylesheet was updated successfully, False otherwise.
         """
-        self.process_style_template()
-        self._icon_color_replace_list.clear()
-        SvgIconEngine.update_all_icons()
-        self.__generate_stylesheet()
+        if self._updating_stylesheet:
+            return
+        self._updating_stylesheet = True
+        try:
+            self._apply_accent_override()
+            self.process_style_template()
+            self._icon_color_replace_list.clear()
+            SvgIconEngine.update_all_icons()
+            self.__generate_stylesheet()
+        finally:
+            self._updating_stylesheet = False
         self.stylesheet_changed.emit()
         self.dark_mode_changed.emit(self.is_current_theme_dark())
 

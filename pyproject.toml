@@ -11,7 +11,7 @@
 [tool.poetry]
 name = "qtass-pyside6"
 version = "0.0.1"
-description = "Python version of Qt Advanced Styplesheets Library"
+description = "Python version of Qt Advanced Stylesheets Library"
 packages = [{include = "qtass"}]
 authors = ["Uwe Kindler"]
 readme = "README_PYPI.md"
@@ -25,10 +25,9 @@ classifiers = [
 
 
 [tool.poetry.urls]
-Homepage = "https://gitlab.com/gitlabuser0xFFFF/nv200_python_lib"
-Source = "https://gitlab.com/gitlabuser0xFFFF/nv200_python_lib"
-"Bug Tracker" = "https://gitlab.com/gitlabuser0xFFFF/nv200_python_lib/-/issues"
-Documentation = "https://nv200-python-lib-e9158a.gitlab.io/"
+Homepage = "https://github.com/githubuser0xFFFF/qtass-pyside6"
+Source = "https://github.com/githubuser0xFFFF/qtass-pyside6"
+"Bug Tracker" = "https://github.com/githubuser0xFFFF/qtass-pyside6/issues"
 
 
 
@@ -40,6 +39,9 @@ Documentation = "https://nv200-python-lib-e9158a.gitlab.io/"
 python = "^3.12,<3.14"
 pyside6 = "^6.9.0"
 jinja2 = "^3.1.6"
+winrt-windows-ui = { version = ">=3.2.1,<4", markers = "sys_platform == 'win32'" }
+winrt-windows-foundation = { version = ">=3.2.1,<4", markers = "sys_platform == 'win32'" }
+winrt-windows-ui-viewmanagement = { version = ">=3.2.1,<4", markers = "sys_platform == 'win32'" }
 
 
 
@@ -71,7 +73,7 @@ sphinxcontrib-napoleon = "^0.7"
 #   Here, it is set to `poetry_dynamic_versioning.backend`, which likely integrates
 #   dynamic versioning functionality into the build process.
 #   (The previously commented-out backend was `poetry.core.masonry.api`.)
-requires = ["poetry-core>=2.0.0,<3.0.0"]
+requires = ["poetry-core>=2.0.0,<3.0.0", "poetry-dynamic-versioning>=1.9.1,<2.0.0"]
 #build-backend = "poetry.core.masonry.api"
 build-backend = "poetry_dynamic_versioning.backend"
 
