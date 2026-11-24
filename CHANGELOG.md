@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1 — 2026-11-24
+
+### Changed
+- Require Python >=3.13 without an upper bound in package metadata.
+- Scope Poetry dependency locking to >=3.13,<3.16, matching current PySide6 support.
+- Allow installation on Python 3.14; runtime behavior is unchanged.
+
 ## 1.0.0 â€” 2026-11-22
 
 ### Added

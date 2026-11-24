@@ -1,3 +1,8 @@
+[project]
+name = "qtass-pyside6"
+requires-python = ">=3.13"
+dynamic = ["version", "description", "readme", "authors", "classifiers", "dependencies"]
+
 # This is the configuration file for the Poetry dependency manager.
 # 
 # [tool.poetry]
@@ -17,7 +22,8 @@ authors = ["Uwe Kindler"]
 readme = "README_PYPI.md"
 #include = ["examples/**/*"]
 classifiers = [
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers"
@@ -33,10 +39,11 @@ Source = "https://github.com/githubuser0xFFFF/qtass-pyside6"
 
 [tool.poetry.dependencies]
 # This section specifies the dependencies for the project managed by Poetry.
-# - python: Requires Python version 3.12 or higher, but lower than 3.14.
+# - python: Limits dependency locking to the currently supported Qt Python range.
+#   Public package metadata remains open-ended through project.requires-python.
 # - pyside6: Adds support for Qt for Python (PySide6) version 6.9.0 or higher.
 # - jinja2: Includes the Jinja2 templating engine, version 3.1.6 or higher.
-python = "^3.12,<3.14"
+python = ">=3.13,<3.16"
 pyside6 = "^6.9.0"
 jinja2 = "^3.1.6"
 winrt-windows-ui = { version = ">=3.2.1,<4", markers = "sys_platform == 'win32'" }
