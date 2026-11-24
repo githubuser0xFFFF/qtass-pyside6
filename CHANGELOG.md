@@ -1,10 +1,10 @@
 # Changelog
 
-## Unreleased
+## 1.0.2 - 2026-11-24
 
 ### Fixed
 - Use Python 3.14 in both GitHub publication jobs to satisfy the >=3.13 minimum.
-- Default manual publication to the existing v1.0.1 tag.
+- Default manual publication to the v1.0.2 release tag.
 
 ## 1.0.1 - 2026-11-24
 
@@ -13,7 +13,7 @@
 - Scope Poetry dependency locking to >=3.13,<3.16, matching current PySide6 support.
 - Allow installation on Python 3.14; runtime behavior is unchanged.
 
-## 1.0.0 â€” 2026-11-22
+## 1.0.0 - 2026-11-22
 
 ### Added
 - AccentSource.THEME, CUSTOM and SYSTEM policies for the existing accentColor variable.
